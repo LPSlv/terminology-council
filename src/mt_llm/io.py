@@ -2,7 +2,8 @@
 
 import json
 import re
-from typing import Dict, Optional, List, Tuple
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
 
 
 def parse_json_with_retry(
@@ -109,3 +110,22 @@ def load_terms_from_json(file_path: str) -> Dict[str, str]:
     except Exception as e:
         print(f"Warning: Error loading terms file: {e}")
         return {}
+
+
+def load_jsonl(file_path: str) -> list:
+    """Load a JSONL file into a list of dicts."""
+    data = []
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                data.append(json.loads(line))
+    return data
+
+
+def write_jsonl(file_path: str, rows: Iterable[Dict]) -> None:
+    """Write an iterable of dicts to a JSONL file."""
+    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
