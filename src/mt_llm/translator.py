@@ -1,12 +1,10 @@
-"""
-Translation module: English -> German using MT models.
-"""
+"""English → German translation via HuggingFace pipeline."""
 
-from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
-import torch
-import time
 import os
 from typing import Optional
+
+import torch
+from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
 
 
 class Translator:
@@ -47,7 +45,6 @@ class Translator:
         return any(indicator in model_lower for indicator in large_indicators)
     
     def _get_torch_dtype(self):
-        """Convert dtype string to torch dtype."""
         if self.dtype == "fp16":
             return torch.float16
         elif self.dtype == "bf16":
@@ -63,13 +60,11 @@ class Translator:
             return torch.float32
     
     def _is_using_sharding(self, model=None):
-        """Check if model is using accelerate sharding."""
         if model is not None:
             return hasattr(model, "hf_device_map") and model.hf_device_map is not None
         return self.use_sharding
     
     def _load_model(self):
-        """Load the translation pipeline."""
         effective_device = "cuda" if self.device == "auto" else self.device
         use_gpu = (effective_device == "cuda") and torch.cuda.is_available()
         num_gpus = torch.cuda.device_count() if use_gpu else 0
@@ -88,7 +83,6 @@ class Translator:
             self._load_single_device(use_gpu)
     
     def _load_with_sharding(self):
-        """Load model with multi-GPU sharding."""
         try:
             torch_dtype = self._get_torch_dtype()
             if torch_dtype == torch.float32:
@@ -142,7 +136,6 @@ class Translator:
             raise RuntimeError(f"Failed to load MT model {self.model_id} with sharding: {e}")
     
     def _load_single_device(self, use_gpu: bool):
-        """Load model on single device, with OOM retry."""
         device_map = 0 if use_gpu else -1
         
         try:

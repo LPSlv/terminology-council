@@ -1,14 +1,15 @@
-"""
-Checker module: LLM post-editing with robust output extraction.
-"""
+"""LLM post-editor for the 2-stage translation pipeline."""
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+import hashlib
 import re
 import sys
-import time
 import os
 from typing import Dict, Optional, List, Literal
+
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from mt_llm.prompts import get_checker_prompt
 
 
 class Checker:
@@ -34,7 +35,6 @@ class Checker:
         self._load_model()
     
     def _get_torch_dtype(self):
-        """Convert dtype string to torch dtype."""
         if self.dtype == "fp16":
             return torch.float16
         elif self.dtype == "bf16":
@@ -51,7 +51,6 @@ class Checker:
             return torch.float32
     
     def _load_model(self):
-        """Load the text generation model."""
         try:
             use_gpu = self.device == "cuda" and torch.cuda.is_available()
             has_multiple_gpus = torch.cuda.is_available() and torch.cuda.device_count() > 1
@@ -130,11 +129,9 @@ class Checker:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Checker model is not loaded")
         
-        import prompts
-        
         prompt_terms = terms if self.terminology_mode == "on" else None
         prompt_memory = memory if self.terminology_mode == "on" else None
-        prompt = prompts.get_checker_prompt(
+        prompt = get_checker_prompt(
             source_text,
             mt_translation,
             prompt_terms,
@@ -143,9 +140,7 @@ class Checker:
         )
         output = self._generate(prompt, max_new_tokens)
         final_translation = self._extract_translation(output, mt_translation)
-        
-        # Debug: log checker usage
-        import hashlib
+
         mt_hash = hashlib.md5(mt_translation.encode()).hexdigest()[:8]
         checker_hash = hashlib.md5(final_translation.encode()).hexdigest()[:8]
         used_checker = (final_translation != mt_translation)
@@ -372,13 +367,11 @@ class Checker:
         elif len(terms_list) != len(source_texts):
             raise ValueError("terms_list must have the same length as source_texts")
         
-        import prompts
-        
         prompt_list = []
         for source_text, mt_translation, terms in zip(source_texts, mt_translations, terms_list):
             prompt_terms = terms if self.terminology_mode == "on" else None
             prompt_memory = memory if self.terminology_mode == "on" else None
-            prompt = prompts.get_checker_prompt(
+            prompt = get_checker_prompt(
                 source_text,
                 mt_translation,
                 prompt_terms,
@@ -392,7 +385,6 @@ class Checker:
         results = []
         junk_count = 0
         applied_count = 0
-        import hashlib
         for i, (source_text, mt_translation, terms, raw_output) in enumerate(zip(source_texts, mt_translations, terms_list, raw_outputs)):
             final_translation = self._extract_translation(raw_output, mt_translation)
             

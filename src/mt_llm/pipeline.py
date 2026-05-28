@@ -1,45 +1,13 @@
-"""
-Translation pipeline orchestrating MT and optional checker stages.
-"""
+"""Translation pipeline orchestrating MT and optional checker stages."""
 
-import sys
-import os
-import importlib.util
+import gc
 import time
+from typing import Dict, List, Optional
+
 import torch
-from typing import Dict, Optional, List
 
-_script_dir = os.path.dirname(os.path.realpath(__file__))
-if _script_dir not in sys.path:
-    sys.path.insert(0, _script_dir)
-
-# Import translator and checker modules
-_translator_path = os.path.join(_script_dir, 'translator.py')
-_checker_path = os.path.join(_script_dir, 'checker.py')
-
-if not os.path.exists(_translator_path):
-    _translator_path = os.path.join(os.getcwd(), 'translator.py')
-if not os.path.exists(_checker_path):
-    _checker_path = os.path.join(os.getcwd(), 'checker.py')
-
-if not os.path.exists(_translator_path):
-    raise ImportError(f"Cannot find translator.py in {_script_dir}")
-if not os.path.exists(_checker_path):
-    raise ImportError(f"Cannot find checker.py in {_script_dir}")
-
-spec = importlib.util.spec_from_file_location("translator", _translator_path)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Could not load translator module")
-translator_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(translator_module)
-Translator = translator_module.Translator
-
-spec = importlib.util.spec_from_file_location("checker", _checker_path)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Could not load checker module")
-checker_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(checker_module)
-Checker = checker_module.Checker
+from mt_llm.checker import Checker
+from mt_llm.translator import Translator
 
 
 class Pipeline:
@@ -92,7 +60,6 @@ class Pipeline:
         if not self.disable_checker:
             if self.device in ["cuda", "auto"] and torch.cuda.is_available():
                 torch.cuda.empty_cache()
-                import gc
                 gc.collect()
             
             checker_start = time.time()
