@@ -1,348 +1,141 @@
-# 2-Stage Translation Pipeline
+# mt_llm
 
-A simple 2-stage English-to-German translation system using Hugging Face Transformers. The pipeline consists of a machine translation (MT) stage followed by an LLM-based checker/post-editor that enforces terminology accuracy, consistency, and grammatical correctness.
+Terminology-preserving English → German translation via LLM post-editing and an LLM council.
 
-## Overview
+This was the codebase behind our team's submission for the [WMT25 terminology
+shared task](https://github.com/wmt-conference/wmt25-terminology/) at the
+University of Tartu (course MTAT.06.055, *Transformers*). It explores two
+inference-time strategies for keeping mandatory glossary terms in the
+translation without retraining any model.
 
-The system operates in two stages:
+## Result
 
-1. **Stage A: Machine Translation** - Translates English to German using a strong MT model from Hugging Face
-2. **Stage B: Checker/Post-Editor** - Uses an instruction-tuned LLM to review, correct, and ensure terminology consistency
+| System | chrF++ | Term accuracy |
+| --- | ---: | ---: |
+| NLLB-MoE-54B alone | 57.9 | 19.1 % |
+| NLLB-MoE + Qwen2.5-7B post-editor, no terms | 57.9 | 19.1 % |
+| NLLB-MoE + Qwen2.5-7B post-editor, with terms | **63.0** | **45.7 %** |
+| LLM Council (3 × 20B members + Mixtral chairman), with terms | **63.7** | **100 %** |
 
-## Quick Start
+500 sentences from `full_data.ende.jsonl`. Numbers from the team's interim
+report; this repo is the reproducible code, not a re-run of the HPC experiments.
 
-```bash
-# Basic usage (translate a sentence)
-python main.py --text "Your English sentence here"
-
-# With GPU acceleration (recommended for HPC)
-python main.py --text "Your sentence" --device cuda
-
-# Multi-GPU support (automatically uses all available GPUs)
-python main.py --text "Your sentence" --device auto
-
-# Skip checker stage (MT only)
-python main.py --text "Your sentence" --no-checker
-
-# With terminology dictionary
-python main.py --text "Your sentence" --terms terms.json
-
-# To change models, edit the MODEL CONFIGURATION section at the top of main.py
-
-# Multi-GPU support (automatic when multiple GPUs available)
-python main.py --text "Your sentence" --device auto
-```
-
-## Installation
-
-### Step 1: Setup Virtual Environment
-
-```bash
-# Option 1: Using uv (if installed)
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
-
-# Option 2: Using standard venv
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Step 2: Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-**Note:** First run will download models (~2-5 GB). This may take several minutes depending on your internet connection.
-
-## Usage
-
-### Basic Translation
-
-```bash
-python main.py --text "Open the consumption model containing the measures and attributes you want to include in your perspective, and click the Perspectives tab."
-```
-
-### Command-Line Arguments
-
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--text "..."` | English sentence to translate (required) | - |
-| `--device cpu\|cuda\|auto` | Device for inference | `auto` (multi-GPU) or `cuda` (single GPU) if available |
-| `--no-checker` | Skip checker stage (MT only) | Disabled |
-| `--terms <path.json>` | Path to terminology dictionary JSON | None |
-
-### Example CLI Runs
-
-```bash
-# Basic translation
-python main.py --text "Machine learning algorithms require large datasets."
-
-# To use different models, edit the MODEL CONFIGURATION section at the top of main.py
-
-# CPU-only mode
-python main.py --text "Your text" --device cpu
-
-# With terminology dictionary
-python main.py --text "Your text" --terms my_terms.json
-
-# MT only (no checker)
-python main.py --text "Your text" --no-checker
-
-# To use different models, edit the MODEL CONFIGURATION section at the top of main.py
-```
-
-## Model Configuration
-
-Models are configured at the top of `main.py` in the `MODEL CONFIGURATION` section. Simply edit the constants to change models:
-
-```python
-# ============================================================================
-# MODEL CONFIGURATION - Change models here
-# ============================================================================
-MT_MODEL = "facebook/nllb-200-1.3B"  # Machine Translation model
-CHECKER_MODEL = "mistralai/Mistral-Large-Instruct-2411"  # Checker/Post-editor model
-MAX_NEW_TOKENS = 512  # Maximum tokens for checker generation
-# ============================================================================
-```
-
-### Default Models
-
-- **MT Model (default)**: `facebook/nllb-200-1.3B` (~2.6GB)
-  - Fallback: `Helsinki-NLP/opus-mt-en-de` (~300MB, if memory limited)
-  
-- **Checker Model (default)**: `mistralai/Mistral-Large-Instruct-2411` (~123B parameters)
-  - Large instruction-tuned model with advanced reasoning capabilities
-  - Supports multi-GPU distribution for large models
-  - Alternative: `Qwen/Qwen2.5-1.5B-Instruct` (~3GB, smaller model)
-
-### Model Requirements
-
-- **GPU**: Recommended for reasonable performance
-  - Single GPU: Works for smaller models (32GB V100 sufficient for Qwen/Qwen2.5-1.5B-Instruct)
-  - Multi-GPU: Recommended for large models like Mistral-Large-Instruct-2411
-- **CPU**: Works but very slow (not recommended for production)
-- **Memory**: Varies by model
-  - Small models: ~5-8GB for default models on GPU with fp16
-  - Large models: Requires significant GPU memory (multi-GPU recommended)
-
-### Model Selection Guidelines
-
-**For HPC with single GPU (32GB V100):**
-- MT: `facebook/nllb-200-1.3B` or `Helsinki-NLP/opus-mt-en-de`
-- Checker: `Qwen/Qwen2.5-1.5B-Instruct` (fits comfortably)
-
-**For HPC with multiple GPUs:**
-- MT: `facebook/nllb-200-1.3B` or `Helsinki-NLP/opus-mt-en-de`
-- Checker: `mistralai/Mistral-Large-Instruct-2411` (use `--device auto` for multi-GPU distribution)
-
-**For memory-limited environments:**
-- MT: `Helsinki-NLP/opus-mt-en-de` (smallest, ~300MB)
-- Checker: `Qwen/Qwen2.5-1.5B-Instruct` or skip with `--no-checker`
-
-**Note:** Do not use gated models (models requiring Hugging Face access approval).
-
-## Terminology Dictionary
-
-The checker can use a terminology dictionary to enforce exact translations for specific terms.
-
-### Dictionary Format
-
-Create a JSON file with English-to-German term mappings:
-
-```json
-{
-  "consumption model": "Verbrauchsmodell",
-  "perspective": "Perspektive",
-  "measures": "Maßnahmen",
-  "attributes": "Attribute"
-}
-```
-
-Or use a nested format (compatible with test data):
-
-```json
-{
-  "proper_terms": {
-    "consumption model": "Verbrauchsmodell",
-    "perspective": "Perspektive"
-  }
-}
-```
-
-### Usage
-
-```bash
-python main.py --text "Your text" --terms terms.json
-```
-
-The checker will:
-- Verify that dictionary terms appear correctly in the translation
-- Report any terminology issues in the output
-- Use exact dictionary translations when present
-
-## Output Format
-
-The system outputs:
-
-1. **Source text**: Original English input
-2. **MT translation**: Raw machine translation output
-3. **Final translation**: Checker-corrected output (or MT if checker skipped)
-4. **Changes**: List of edits made by checker (if any)
-5. **Terminology issues**: Terms that don't match the dictionary (if any)
-6. **Consistency notes**: Observations about term consistency
-
-### Example Output
-
-```
-================================================================================
-RESULTS
-================================================================================
-
-Source text: Open the consumption model containing the measures and attributes...
-
-MT translation: Öffnen Sie das Verbrauchsmodell, das die Maßnahmen und Attribute...
-
-Final translation (after checker): Öffnen Sie das Verbrauchsmodell, das die Maßnahmen und Attribute...
-
-Changes made (1):
-  - Fixed grammatical agreement
-    From: "die Maßnahmen"
-    To: "die Maßnahmen"
-
-Terminology issues (0):
-
-Summary:
-Changes made: 1
-  - Fixed grammatical agreement
-```
-
-## Checker Output Format
-
-The checker returns JSON with the following structure:
-
-```json
-{
-  "final_translation": "[corrected German translation]",
-  "changes": [
-    {
-      "from": "[original text]",
-      "to": "[corrected text]",
-      "reason": "[why changed]"
-    }
-  ],
-  "terminology_issues": [
-    {
-      "source_term": "[English term]",
-      "expected": "[correct German]",
-      "found": "[what was in translation]"
-    }
-  ],
-  "consistency_notes": [
-    "[consistency observations]"
-  ]
-}
-```
-
-If the checker fails to produce valid JSON, it will auto-retry up to 2 times with a stricter correction prompt.
+![chrF++ vs terminology accuracy](assets/results-scatter.svg)
 
 ## Architecture
 
-### Core Components
+Two pipelines, both pure inference-time (no fine-tuning):
 
-- **`Translator`** (`translator.py`): Loads and runs MT models
-- **`Checker`** (`checker.py`): Loads and runs LLM checker with JSON output
-- **`Pipeline`** (`pipeline.py`): Orchestrates the 2-stage workflow
-- **`prompts.py`**: Contains checker prompt with strict JSON instructions
-- **`utils.py`**: JSON parsing helpers and terminology matching
+**Two-stage post-editor.**
+NLLB-MoE-54B produces an initial German translation. A second, instruction-tuned
+LLM (Qwen2.5-7B-Instruct) receives the source, the MT output, and a per-sentence
+terminology dictionary, and is instructed to make minimal edits — fixing
+terminology and necessary grammatical agreement only. Without terminology hints
+the editor produces stylistic edits that wash out: chrF++ moves by ±0.01. Given
+the dictionary, it reliably swaps in the required terms and lifts both metrics.
 
-### Workflow
+**LLM Council** (reconstruction of the architecture by Bekarys Toleshov, after
+Karpathy's [`llm-council`](https://github.com/karpathy/llm-council)).
+Three council members translate independently:
 
-1. **Load models**: MT model and checker model (if not skipped)
-2. **Stage A**: Translate English -> German using MT model
-3. **Stage B**: Checker reviews MT output, enforces terminology, outputs JSON
-4. **Output**: Display results with summary
+- `togethercomputer/GPT-NeoXT-Chat-Base-20B`
+- `ai-sage/GigaChat-20B-A3B-instruct`
+- `ibm-granite/granite-20b-code-instruct-8k`
 
-### Consistency Memory
+Optionally, each member peer-reviews the others' candidates. A chairman
+(`mistralai/Mixtral-8x7B-Instruct-v0.1`) receives the source, all candidates,
+optional reviews, and the mandatory terminology, and produces the final
+translation — selecting and editing as needed.
 
-The pipeline maintains an in-memory consistency dictionary that tracks terminology decisions across runs. This can be extended to persist to disk in future versions.
+The report tried five "cases" varying which signals reach the chairman. The
+best (case 4) was: chairman may rewrite, no peer review, terms passed to
+chairman → 63.7 chrF++, 100 % term accuracy. That is the default in this repo.
 
-## HPC Considerations
+## Install
 
-### Slurm Job Example
+Requires Python ≥ 3.10. The defaults pull large models from Hugging Face
+(NLLB-MoE-54B is ~110 GB on disk, Mixtral ~95 GB) — meant for HPC use. The
+council members and chairman are also large.
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=translate
-#SBATCH --gres=gpu:1
-#SBATCH --mem=32G
-#SBATCH --time=01:00:00
-
-source venv/bin/activate
-python main.py --text "Your sentence" --device cuda
+git clone https://github.com/<you>/mt-llm.git
+cd mt-llm
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-### Memory Management
+## Usage
 
-- Models use fp16 on GPU where possible
-- Models are loaded sequentially (MT first, then checker)
-- GPU cache is cleared after each model load
-- If checker fails to load, pipeline continues with MT output only
+Single sentence, two-stage pipeline:
 
-### Deterministic Generation
+```bash
+python -m mt_llm translate "Open the consumption model and click the Perspectives tab." \
+    --terms tests/fixtures/example.json
+```
 
-- Checker uses `do_sample=False` for deterministic outputs
-- Random seeds are set for reproducibility
-- No sampling/temperature used
+Batch over a JSONL file:
 
-## Error Handling
+```bash
+python -m mt_llm translate --data data/full_data.ende.jsonl --max-items 100 \
+    --output preds.jsonl
+```
 
-- **MT model fails**: Pipeline exits with error
-- **Checker model fails to load**: Pipeline continues with MT output only (logs warning)
-- **Checker produces invalid JSON**: Auto-retries up to 2 times with stricter prompt
-- **Checker fails after retries**: Falls back to MT output with warning
+Council mode (defaults to the report's models — only sensible on HPC):
 
-## System Requirements
+```bash
+python -m mt_llm council --data data/full_data.ende.jsonl \
+    --terms-to-chairman --output council-preds.jsonl
+```
 
-- **Python**: 3.8 or higher
-- **Memory**: At least 8GB RAM (16GB+ recommended)
-- **Disk Space**: ~5-10 GB for model downloads (first run only)
-- **GPU**: Recommended (32GB V100 sufficient for default models)
-- **Dependencies**: See `requirements.txt`
+Evaluate predictions:
 
-## First Run Notes
+```bash
+python -m mt_llm evaluate --predictions preds.jsonl \
+    --references data/full_data.ende.jsonl
+```
 
-- **Model Downloads**: Models are automatically downloaded from Hugging Face on first run
-  - Total download size: ~5-10 GB (depending on models)
-  - Models are cached in `~/.cache/huggingface/` for future use
-  - Works offline after first download
-- **GPU Performance**: 
-  - Typical translation time: 5-15 seconds total (MT + checker)
-  - CPU inference: Very slow (not recommended)
+See `scripts/launch.slurm` for an HPC launch template.
 
-## Troubleshooting
+## Data
 
-**Out of memory errors:**
-- Use smaller models: `--mt-model "Helsinki-NLP/opus-mt-en-de"`
-- Skip checker: `--no-checker`
-- Use CPU: `--device cpu` (very slow)
+`data/full_data.ende.jsonl` is the EN-DE file from
+[wmt25-terminology](https://github.com/wmt-conference/wmt25-terminology) (500
+sentences with per-sentence `proper_terms` glossaries). `ende_dev.jsonl` is the
+development variant; `ende.noterm.jsonl` is the same data with terminology
+fields stripped, used to isolate the editor's contribution.
 
-**Checker produces invalid JSON:**
-- System auto-retries up to 2 times
-- If still fails, falls back to MT output
+## Why terminology constraints matter
 
-**Model download fails:**
-- Check internet connection
-- Ensure sufficient disk space
-- Try running again (downloads are cached)
+We ran the same 500 sentences twice, identical models and seeds, varying only
+whether the editor received the terminology dictionary. Without terms, the
+editor changed 319/500 outputs but chrF++ moved by –0.01 and term accuracy
+stayed at 19.1 % — the edits were noise. With terms, it changed 372/500
+outputs, lifted chrF++ by +5.05 and terminology accuracy by +26.6 %. The
+editor's value is in being directed; an undirected post-editor mostly trades
+one phrasing for another and on aggregate produces no signal.
 
-## Differences from Previous Council System
+## Limitations
 
-This refactored version:
-- ✅ Removed multi-member council, voting, anonymization, chairman logic
-- ✅ Simplified to 2-stage pipeline (MT -> Checker)
-- ✅ Checker outputs structured JSON (not free-form text)
-- ✅ Deterministic generation (no sampling)
-- ✅ Configurable models via CLI
-- ✅ Optional terminology dictionary support
-- ✅ Simple consistency memory (can be persisted later)
+The current council members are all in the 20 B parameter range, which the
+report's analysis shows is too weak to produce granular peer-review feedback —
+case 1, 2, and 3 (peer review on, terms off) all sit at ~57 chrF++ and ~37 %
+term accuracy. The 26-point jump in term accuracy comes entirely from passing
+the terminology dictionary to the chairman. Strengthening the council with
+larger, more analytic models is the natural next step.
+
+## Credits
+
+This repository contains code that supported the team submission for the
+WMT25 terminology task, course MTAT.06.055, University of Tartu.
+
+- **Lenards Skrodelis** — 2-stage MT + LLM post-editor architecture, main editor.
+- **Bekarys Toleshov** — LLM Council architecture.
+- **Muhammad Sohaib Anwar** — Poster and report.
+
+This repo is Lenards' working portfolio version: the 2-stage pipeline is his
+own; the council module here is a code reconstruction of Bekarys' architecture
+from the team's interim report.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
