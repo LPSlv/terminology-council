@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mt-llm"
+version = "0.1.0"
+description = "English-to-German translation that preserves terminology, via LLM post-editing and an LLM council."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Lenards Skrodelis", email = "lpsdlv@gmail.com" }]
+dependencies = [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "accelerate>=0.30",
+    "sentencepiece>=0.1.99",
+    "protobuf>=3.20",
+    "numpy>=1.24",
+    "sacrebleu>=2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+mt-llm = "mt_llm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
