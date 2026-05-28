@@ -1,7 +1,5 @@
 """A single council member: an instruction-tuned LLM that can translate and peer-review."""
 
-from typing import Dict, List, Optional
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -20,7 +18,7 @@ class Member:
         device: str = "cpu",
         dtype: str = "auto",
         max_new_tokens: int = 256,
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
     ):
         self.model_id = model_id
         self.device = device
@@ -63,10 +61,10 @@ class Member:
                 do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id,
             )
-        generated_ids = out[0][inputs["input_ids"].shape[1]:]
+        generated_ids = out[0][inputs["input_ids"].shape[1] :]
         return self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
-    def translate(self, source: str, terms: Optional[Dict[str, str]] = None) -> str:
+    def translate(self, source: str, terms: dict[str, str] | None = None) -> str:
         prompt = build_member_translate_prompt(source, terms=terms)
         return self._generate(prompt)
 
@@ -74,7 +72,7 @@ class Member:
         self,
         source: str,
         own_translation: str,
-        other_translations: List[str],
+        other_translations: list[str],
     ) -> str:
         prompt = build_member_review_prompt(source, own_translation, other_translations)
         return self._generate(prompt)

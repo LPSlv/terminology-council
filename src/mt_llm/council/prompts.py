@@ -1,9 +1,7 @@
 """Prompt templates for the LLM Council."""
 
-from typing import Dict, List, Optional
 
-
-def _format_terms(terms: Optional[Dict[str, str]]) -> str:
+def _format_terms(terms: dict[str, str] | None) -> str:
     if not terms:
         return ""
     items = ", ".join(f"'{en}'='{de}'" for en, de in terms.items())
@@ -12,7 +10,7 @@ def _format_terms(terms: Optional[Dict[str, str]]) -> str:
 
 def build_member_translate_prompt(
     source: str,
-    terms: Optional[Dict[str, str]] = None,
+    terms: dict[str, str] | None = None,
 ) -> str:
     """Prompt a council member to translate EN -> DE."""
     terms_section = _format_terms(terms)
@@ -26,12 +24,10 @@ def build_member_translate_prompt(
 def build_member_review_prompt(
     source: str,
     own_translation: str,
-    other_translations: List[str],
+    other_translations: list[str],
 ) -> str:
     """Ask a council member to peer-review the other members' translations."""
-    others_block = "\n".join(
-        f"  Candidate {i + 1}: {t}" for i, t in enumerate(other_translations)
-    )
+    others_block = "\n".join(f"  Candidate {i + 1}: {t}" for i, t in enumerate(other_translations))
     return (
         f"You translated this English text into German:\n"
         f"  English: {source}\n"
@@ -45,20 +41,20 @@ def build_member_review_prompt(
 
 def build_chairman_prompt(
     source: str,
-    candidates: List[str],
-    reviews: Optional[List[str]],
-    terms: Optional[Dict[str, str]],
+    candidates: list[str],
+    reviews: list[str] | None,
+    terms: dict[str, str] | None,
     allow_rewrite: bool,
 ) -> str:
     """Final-arbiter prompt for the chairman."""
-    candidates_block = "\n".join(
-        f"  Candidate {i + 1}: {c}" for i, c in enumerate(candidates)
-    )
+    candidates_block = "\n".join(f"  Candidate {i + 1}: {c}" for i, c in enumerate(candidates))
     reviews_block = ""
     if reviews:
-        reviews_block = "\nPeer reviews:\n" + "\n".join(
-            f"  Review {i + 1}: {r}" for i, r in enumerate(reviews)
-        ) + "\n"
+        reviews_block = (
+            "\nPeer reviews:\n"
+            + "\n".join(f"  Review {i + 1}: {r}" for i, r in enumerate(reviews))
+            + "\n"
+        )
     terms_section = _format_terms(terms)
 
     instruction = (

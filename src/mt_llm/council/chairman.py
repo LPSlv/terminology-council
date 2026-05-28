@@ -1,7 +1,5 @@
 """Chairman: final arbiter for the council."""
 
-from typing import Dict, List, Optional
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -17,7 +15,7 @@ class Chairman:
         device: str = "cpu",
         dtype: str = "auto",
         max_new_tokens: int = 256,
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
     ):
         self.model_id = model_id
         self.device = device
@@ -52,9 +50,9 @@ class Chairman:
     def arbitrate(
         self,
         source: str,
-        candidates: List[str],
-        reviews: Optional[List[str]],
-        terms: Optional[Dict[str, str]],
+        candidates: list[str],
+        reviews: list[str] | None,
+        terms: dict[str, str] | None,
         allow_rewrite: bool,
     ) -> str:
         prompt = build_chairman_prompt(
@@ -74,5 +72,5 @@ class Chairman:
                 do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id,
             )
-        generated_ids = out[0][inputs["input_ids"].shape[1]:]
+        generated_ids = out[0][inputs["input_ids"].shape[1] :]
         return self.tokenizer.decode(generated_ids, skip_special_tokens=True).strip()

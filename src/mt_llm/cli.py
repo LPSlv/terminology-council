@@ -11,8 +11,6 @@ import json
 import random
 import sys
 import time
-from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import torch
@@ -114,7 +112,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     term_found = 0
     n = 0
 
-    for pred, ref in zip(preds, refs):
+    for pred, ref in zip(preds, refs, strict=False):
         hypothesis = pred.get("prediction") or pred.get("translation") or pred.get("de", "")
         reference = ref.get("de", "")
         proper_terms, _ = get_terminology_fields(ref)
@@ -142,7 +140,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 def _run_batch(args, runner, mode: str) -> int:
     data = load_jsonl(args.data)
     if args.skip:
-        data = data[args.skip:]
+        data = data[args.skip :]
     if args.max_items:
         data = data[: args.max_items]
 
@@ -152,27 +150,29 @@ def _run_batch(args, runner, mode: str) -> int:
 
     t0 = time.time()
     if mode == "2stage":
-        results = runner.run_batch(sources, terms_list=terms_list, skip_checker=args.disable_checker)
+        results = runner.run_batch(
+            sources, terms_list=terms_list, skip_checker=args.disable_checker
+        )
     else:  # council
         results = runner.run_batch(sources, terms_list=terms_list)
     dt = time.time() - t0
 
     if any(refs):
         chrfs = []
-        for ref, res in zip(refs, results):
+        for ref, res in zip(refs, results, strict=False):
             if ref is None:
                 continue
             hyp = res.get("final_translation") or res.get("mt_translation", "")
             ev = evaluate_translation(ref, hyp, {})
             chrfs.append(ev["chrfpp_score"])
         if chrfs:
-            print(f"items={len(chrfs)} avg_chrF++={sum(chrfs)/len(chrfs):.2f} time={dt:.1f}s")
+            print(f"items={len(chrfs)} avg_chrF++={sum(chrfs) / len(chrfs):.2f} time={dt:.1f}s")
     else:
         print(f"items={len(results)} time={dt:.1f}s")
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
-            for src, ref, res in zip(sources, refs, results):
+            for src, ref, res in zip(sources, refs, results, strict=False):
                 row = {"en": src, "de": ref, "prediction": res.get("final_translation")}
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
         print(f"wrote {args.output}")
@@ -195,7 +195,9 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--checker-model", type=str, default="Qwen/Qwen2.5-7B-Instruct")
     t.add_argument("--disable-checker", action="store_true")
     t.add_argument("--terminology-mode", choices=["on", "off"], default="on")
-    t.add_argument("--terms", type=str, default=None, help="Terminology JSON path (single text mode)")
+    t.add_argument(
+        "--terms", type=str, default=None, help="Terminology JSON path (single text mode)"
+    )
     _add_common_model_args(t)
     t.set_defaults(func=cmd_translate)
 
@@ -222,12 +224,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="mistralai/Mixtral-8x7B-Instruct-v0.1",
         help="Chairman model ID (default: Mixtral-8x7B)",
     )
-    c.add_argument("--peer-review", action="store_true",
-                   help="Pass member peer reviews to chairman")
-    c.add_argument("--terms-to-chairman", action="store_true",
-                   help="Pass terminology dictionary to chairman")
-    c.add_argument("--allow-chairman-rewrite", action=argparse.BooleanOptionalAction, default=True,
-                   help="Chairman may rewrite if unsatisfied (default: on)")
+    c.add_argument(
+        "--peer-review", action="store_true", help="Pass member peer reviews to chairman"
+    )
+    c.add_argument(
+        "--terms-to-chairman", action="store_true", help="Pass terminology dictionary to chairman"
+    )
+    c.add_argument(
+        "--allow-chairman-rewrite",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Chairman may rewrite if unsatisfied (default: on)",
+    )
     c.add_argument("--terms", type=str, default=None)
     _add_common_model_args(c)
     c.set_defaults(func=cmd_council)
@@ -241,13 +249,14 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if hasattr(args, "seed"):
         _set_seed(args.seed)
     if getattr(args, "offline", False):
         import os
+
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
     return args.func(args)
 

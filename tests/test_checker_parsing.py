@@ -4,7 +4,6 @@ import pytest
 
 from mt_llm.io import parse_json_with_retry
 
-
 GOOD = (
     '{"final_translation": "Hallo Welt", '
     '"changes": [], "terminology_issues": [], "consistency_notes": []}'

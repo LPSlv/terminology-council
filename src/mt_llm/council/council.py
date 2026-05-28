@@ -1,7 +1,5 @@
 """Council orchestration: members translate, optionally peer-review, chairman arbitrates."""
 
-from typing import Dict, List, Optional
-
 from mt_llm.council.chairman import Chairman
 from mt_llm.council.member import Member
 
@@ -11,12 +9,12 @@ class Council:
 
     def __init__(
         self,
-        member_model_ids: List[str],
+        member_model_ids: list[str],
         chairman_model_id: str,
         device: str = "cpu",
         dtype: str = "auto",
         max_new_tokens: int = 256,
-        cache_dir: Optional[str] = None,
+        cache_dir: str | None = None,
         peer_review: bool = False,
         terms_to_chairman: bool = False,
         allow_chairman_rewrite: bool = True,
@@ -48,11 +46,11 @@ class Council:
             m.load()
         self.chairman.load()
 
-    def run(self, source_text: str, terms: Optional[Dict[str, str]] = None) -> Dict:
+    def run(self, source_text: str, terms: dict[str, str] | None = None) -> dict:
         """Run the council on a single source sentence."""
         candidates = [m.translate(source_text, terms=terms) for m in self.members]
 
-        reviews: Optional[List[str]] = None
+        reviews: list[str] | None = None
         if self.peer_review and len(self.members) > 1:
             reviews = []
             for i, m in enumerate(self.members):
@@ -77,9 +75,9 @@ class Council:
 
     def run_batch(
         self,
-        source_texts: List[str],
-        terms_list: Optional[List[Optional[Dict[str, str]]]] = None,
-    ) -> List[Dict]:
+        source_texts: list[str],
+        terms_list: list[dict[str, str] | None] | None = None,
+    ) -> list[dict]:
         if terms_list is None:
             terms_list = [None] * len(source_texts)
-        return [self.run(s, terms=t) for s, t in zip(source_texts, terms_list)]
+        return [self.run(s, terms=t) for s, t in zip(source_texts, terms_list, strict=False)]

@@ -1,6 +1,6 @@
 """Prompt templates for the 2-stage translation pipeline."""
 
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 # Hard-coded few-shot example for the checker prompt.
 # Derived from the first dataset entry; German manually corrected:
@@ -27,15 +27,15 @@ def get_mt_prompt(source_text: str) -> str:
 def get_checker_prompt(
     source_text: str,
     mt_output: str,
-    terms: Optional[Dict[str, str]] = None,
-    memory: Optional[Dict[str, str]] = None,
+    terms: dict[str, str] | None = None,
+    memory: dict[str, str] | None = None,
     terminology_mode: Literal["on", "off"] = "on",
 ) -> str:
     """Build the post-editor prompt for the checker stage."""
-    enforce_terms = (terminology_mode == "on")
+    enforce_terms = terminology_mode == "on"
 
     # Combine terms and memory (only when enforcing terminology)
-    all_terms: Dict[str, str] = {}
+    all_terms: dict[str, str] = {}
     if enforce_terms:
         if terms:
             all_terms.update(terms)
@@ -62,7 +62,9 @@ def get_checker_prompt(
     example_terms_section = ""
     if enforce_terms and _EXAMPLE_TERMS:
         example_terms_list = ", ".join(f"'{en}'='{de}'" for en, de in _EXAMPLE_TERMS.items())
-        example_terms_section = f"\nRequired terms (use these exact translations): {example_terms_list}\n"
+        example_terms_section = (
+            f"\nRequired terms (use these exact translations): {example_terms_list}\n"
+        )
 
     example_section = (
         f"Example:\n\n"

@@ -1,25 +1,23 @@
 """Evaluation metrics: chrF++ and terminology success rate."""
 
-from typing import Dict, List, Tuple, Optional
-from collections import Counter
 import re
+from collections import Counter
 
 
 def calculate_chrfpp(reference: str, hypothesis: str) -> float:
     """chrF++ (word_order=2) via sacrebleu; score is in 0–100 range."""
     try:
         import sacrebleu
+
         chrf = sacrebleu.sentence_chrf(hypothesis, [reference], word_order=2)
         return chrf.score
-    except ImportError:
-        raise ImportError("sacrebleu is required. Install with: pip install sacrebleu")
+    except ImportError as e:
+        raise ImportError("sacrebleu is required. Install with: pip install sacrebleu") from e
 
 
 def terminology_success_rate(
-    hypothesis: str,
-    proper_terms: Dict[str, str],
-    case_sensitive: bool = False
-) -> Tuple[float, Dict[str, bool]]:
+    hypothesis: str, proper_terms: dict[str, str], case_sensitive: bool = False
+) -> tuple[float, dict[str, bool]]:
     """Fraction of expected German terms that appear in the hypothesis (word-boundary match)."""
     if not proper_terms:
         return 1.0, {}
@@ -30,12 +28,12 @@ def terminology_success_rate(
 
     for source_term, expected_translation in proper_terms.items():
         expected = expected_translation if case_sensitive else expected_translation.lower()
-        pattern = r'\b' + re.escape(expected) + r'\b'
+        pattern = r"\b" + re.escape(expected) + r"\b"
         found = bool(re.search(pattern, text, re.IGNORECASE if not case_sensitive else 0))
         term_results[source_term] = {
             "found": found,
             "expected": expected_translation,
-            "source": source_term
+            "source": source_term,
         }
         if found:
             found_count += 1
@@ -45,10 +43,8 @@ def terminology_success_rate(
 
 
 def terminology_consistency(
-    hypotheses: List[str],
-    source_term: str,
-    expected_translation: Optional[str] = None
-) -> Tuple[float, Dict[str, int]]:
+    hypotheses: list[str], source_term: str, expected_translation: str | None = None
+) -> tuple[float, dict[str, int]]:
     """
     Percentage of translations that use the most common rendering of a source term.
 
@@ -61,7 +57,7 @@ def terminology_consistency(
     translations = []
     for hyp in hypotheses:
         if expected_translation:
-            pattern = r'\b' + re.escape(expected_translation) + r'\b'
+            pattern = r"\b" + re.escape(expected_translation) + r"\b"
             if re.search(pattern, hyp, re.IGNORECASE):
                 translations.append(expected_translation)
             else:
@@ -81,28 +77,24 @@ def terminology_consistency(
 def evaluate_translation(
     reference: str,
     hypothesis: str,
-    proper_terms: Dict[str, str],
-    random_terms: Optional[Dict[str, str]] = None
-) -> Dict:
+    proper_terms: dict[str, str],
+    random_terms: dict[str, str] | None = None,
+) -> dict:
     """chrF++ + terminology success rate for a single translation."""
-    results = {
-        "chrfpp_score": calculate_chrfpp(reference, hypothesis),
-        "terminology": {}
-    }
+    results = {"chrfpp_score": calculate_chrfpp(reference, hypothesis), "terminology": {}}
     proper_success_rate, proper_term_results = terminology_success_rate(hypothesis, proper_terms)
     results["terminology"]["proper_terms"] = {
         "success_rate": proper_success_rate,
         "term_results": proper_term_results,
         "total_terms": len(proper_terms),
-        "found_terms": sum(1 for r in proper_term_results.values() if r["found"])
+        "found_terms": sum(1 for r in proper_term_results.values() if r["found"]),
     }
     return results
 
 
 def evaluate_consistency_across_translations(
-    hypotheses: List[str],
-    term_dictionary: Dict[str, str]
-) -> Dict[str, Dict]:
+    hypotheses: list[str], term_dictionary: dict[str, str]
+) -> dict[str, dict]:
     """Consistency metrics per source term across a list of translations."""
     consistency_results = {}
     for source_term, expected_translation in term_dictionary.items():
@@ -113,12 +105,12 @@ def evaluate_consistency_across_translations(
             "consistency_score": consistency_score,
             "expected": expected_translation,
             "translation_variants": translation_counts,
-            "total_occurrences": sum(translation_counts.values())
+            "total_occurrences": sum(translation_counts.values()),
         }
     return consistency_results
 
 
-def format_evaluation_report(results: Dict) -> str:
+def format_evaluation_report(results: dict) -> str:
     """Format evaluation results as a readable report string."""
     report = []
     report.append("=" * 80)

@@ -1,9 +1,9 @@
 """Tests for council prompt templates."""
 
 from mt_llm.council.prompts import (
-    build_member_translate_prompt,
-    build_member_review_prompt,
     build_chairman_prompt,
+    build_member_review_prompt,
+    build_member_translate_prompt,
 )
 
 
